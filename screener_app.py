@@ -84,6 +84,28 @@ def get_data(ticker, start_date, end_date):
     
     return grouped_df
 
+def calculate_metrics(grouped_df, risk_free_rate_annual=0.04, trading_days=252): 
+    prices = grouped_df['Close']
+    returns = prices.pct_change().dropna() 
+    #Let 
+    risk_free_rate_daily = risk_free_rate_annual/trading_days
+
+    excess_returns = returns - risk_free_rate_daily
+    avg_excess_returns = excess_returns.mean() 
+    std_excess_returns = excess_returns.std() 
+    sharpe_ratio_annualised = (avg_excess_returns / std_excess_returns) * np.sqrt(252)
+
+    cumulative_returns = (1 + returns).cumprod() - 1
+    total_returns = cumulative_returns.iloc[-1] * 100
+
+    cumulative_growth = (1 + returns).cumprod()
+    cumulative_max = cumulative_growth.cummax() 
+    drawdown = (cumulative_growth - cumulative_max) / cumulative_max
+    max_drawdown = drawdown.min() * 100 
+
+    return sharpe_ratio_annualised, max_drawdown, total_returns
+
+
 # Create main Streamlit app page
 #******************************************************************************************************************************************************************************
 def main(): 
@@ -94,14 +116,16 @@ def main():
     dt_col = st.sidebar.columns(2)
     end_date = dt_col[1].date_input('End Date', pd.to_datetime('today'))
     start_date = dt_col[0].date_input('Start Date', end_date - pd.DateOffset(years=1))
+    rsi_graph = st.sidebar.checkbox('RSI Graph')
+    adx_graph = st.sidebar.checkbox('ADX Graph')
+    MA_graph = st.sidebar.checkbox('MA Graph')
+    
+    #Bring in and combine data
     df = get_data(ticker, start_date, end_date)
     sp500 = get_sp500_table()
     combined_df = pd.merge(df, sp500[['Symbol', 'Security', 'GICS Sector']], left_on='Ticker', right_on='Symbol')
     new_df = pd.DataFrame(combined_df).rename(columns={'GICS Sector': 'Sector'})
 
-    rsi_graph = st.sidebar.checkbox('RSI Graph')
-    adx_graph = st.sidebar.checkbox('ADX Graph')
-    MA_graph = st.sidebar.checkbox('MA Graph')
 
     col1, col2 = st.columns([3,1])
     with col1: 
@@ -167,13 +191,36 @@ def main():
         - ADX trend strength indicator > our threshold of 25
         '''
         )
+    
+    #Summary metrics
+    st.subheader('Key Metrics', divider='gray')
+    sharpe, drawdown, total_returns = calculate_metrics(df)
+    mcol1, mcol2, mcol3, mcol4 = st.columns([1, 1, 1, 5])
+    with mcol1: 
+        st.metric('Sharpe Ratio', f'{sharpe:.2f}')
+    with mcol2: 
+        st.metric('Max Drawdown', f'{drawdown:.2f}%')
+    with mcol3: 
+        st.metric('Total Returns', f'{total_returns:+.2f}%')
 
-    #Add RSI plot
-    #selected_rsi = st.multiselect('RSI', 
-    #                                      options=new_df['RSI Signal'].unique(),
-    #                                      default=new_df['RSI Signal'].unique())
 
-    #df_selected_rsi = new_df[new_df['RSI Signal'].isin(selected_rsi)]
+    if sharpe < 1: 
+        st.write('Returns are not compensating for the risk taken for this period')
+    elif 1 <= sharpe < 2: 
+        st.write('A decent risk-adjusted performance over this timescale')
+    elif 2 <= sharpe < 3: 
+        st.write('Indicates a strong risk adjusted return for this time frame')
+    else:
+        st.write('Over this period the investment has genererated excellent returns for the amount of risk taken') 
+    
+    if drawdown > -10: 
+        st.write('Low drawdown, stock rarely suffers big losses') 
+    elif -25 <= drawdown < -10: 
+        st.write('Moderate drawdown, normal for most equities')
+    elif -50 <= drawdown < -25: 
+        st.write('High max drawdown - higher risk')
+    else: 
+        st.write('Very high max drawdown - a 50% loss requires a 100% gain to break even!')
 
     if rsi_graph:
         fig2 = go.Figure(data=go.Scatter(

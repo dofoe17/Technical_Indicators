@@ -37,3 +37,9 @@ Heading over to the navigation page, we can search using the drop down to select
 <img width="1857" height="845" alt="image" src="https://github.com/user-attachments/assets/e537d91a-6ed2-45c8-87b0-afad922bf226" />
 
 
+Finally added key metric data and conditional summary: 
+
+<img width="968" height="256" alt="image" src="https://github.com/user-attachments/assets/ae88cddf-37ca-407f-a8e0-f69e18b7009c" />
+
+
+
